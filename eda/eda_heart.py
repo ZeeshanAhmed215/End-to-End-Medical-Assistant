@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 # Set file path
-file_path = r"D:\End-to-End-Medical-Assistant\datasets\diabetes.csv"
+file_path = r"D:\End-to-End-Medical-Assistant\datasets\heart.csv"
 
 # 1. Load Dataset
 print("--- 1. LOADING DATASET ---")

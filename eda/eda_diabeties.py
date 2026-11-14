@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 # Set file path
-file_path = r"D:\End-to-End-Medical-Assistant\datasets\heart_disease.csv"
+file_path = r"D:\End-to-End-Medical-Assistant\datasets\diabetes_training.csv"
 
 # 1. Load Dataset
 print("--- 1. LOADING DATASET ---")
@@ -47,7 +47,7 @@ else:
         plt.figure(figsize=(6, 4))
         sns.countplot(x=df[target_col], palette="Set2")
         plt.title(f"Distribution of {target_col}")
-        plt.savefig(r"eda\outputs\heart_target_distribution.png", dpi=300, bbox_inches="tight")
+        plt.savefig(r"eda\outputs\diabetes_target_distribution.png", dpi=300, bbox_inches="tight")
         plt.close()
 
     # Plot B: Correlation Heatmap (for numerical features)
@@ -57,7 +57,7 @@ else:
     corr = numeric_df.iloc[:, :10].corr()
     sns.heatmap(corr, annot=True, cmap="coolwarm", fmt=".2f", linewidths=0.5)
     plt.title("Feature Correlation Heatmap (First 10 Numerical Features)")
-    plt.savefig(r"eda\outputs\heart_correlation_heatmap.png", dpi=300, bbox_inches="tight")
+    plt.savefig(r"eda\outputs\diabetes_correlation_heatmap.png", dpi=300, bbox_inches="tight")
     plt.close()
 
     print("EDA plots successfully saved inside the 'outputs/' folder!")
