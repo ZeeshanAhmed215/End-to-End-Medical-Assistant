@@ -5,9 +5,9 @@ from sklearn.preprocessing import LabelEncoder
 # ==========================================
 # 1. CONFIGURATION & LOADING
 # ==========================================
-INPUT_FILE = r"D:\End-to-End-Medical-Assistant\datasets\heart_disease.csv" # Update to your dataset path if needed
+INPUT_FILE = r"D:\End-to-End-Medical-Assistant\datasets\heart.csv" # Update to your dataset path if needed
 OUTPUT_FILE = "preprocessed_data.csv" 
-TARGET_COL = "Heart Disease Status"  # Your target column name
+TARGET_COL = "HeartDisease"  # Your target column name
 
 print(f"Loading dataset from {INPUT_FILE}...")
 df = pd.read_csv(INPUT_FILE)

@@ -61,3 +61,4 @@ else:
     plt.close()
 
     print("EDA plots successfully saved inside the 'outputs/' folder!")
+    

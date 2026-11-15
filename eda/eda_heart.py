@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 # Set file path
-file_path = r"D:\End-to-End-Medical-Assistant\datasets\heart.csv"
+file_path = r"D:\End-to-End-Medical-Assistant\datasets\clean_heart.csv"
 
 # 1. Load Dataset
 print("--- 1. LOADING DATASET ---")
@@ -61,3 +61,9 @@ else:
     plt.close()
 
     print("EDA plots successfully saved inside the 'outputs/' folder!")
+    print("Total rows:", len(df))
+    print("Duplicate rows:", df.duplicated().sum())
+   
+
+
+
