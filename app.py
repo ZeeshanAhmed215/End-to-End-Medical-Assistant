@@ -79,6 +79,11 @@ def load_models():
     except Exception:
         models["heart"] = None
         
+    try:
+        models["general"] = joblib.load(r"D:\End-to-End-Medical-Assistant\models\general_model.pkl")
+    except Exception:
+        models["general"] = None
+        
     return models
 
 models = load_models()
@@ -99,10 +104,11 @@ st.markdown("""
 # ==========================================
 # MAIN TABS INTERFACE
 # ==========================================
-tab_cancer, tab_diabetes, tab_heart = st.tabs([
-    "🎗️ Cancer Risk Triage", 
-    "🩸 Diabetes Risk Triage", 
-    "❤️ Heart Disease Risk Triage"
+tab_cancer, tab_diabetes, tab_heart, tab_general = st.tabs([
+    "🎗️ Cancer Risk Triage",
+    "🩸 Diabetes Risk Triage",
+    "❤️ Heart Disease Risk Triage",
+    "🩺 General Checkup"
 ])
 
 # ==========================================
@@ -284,6 +290,221 @@ with tab_heart:
                             <p><em>Recommendation: Maintain heart-healthy habits, regular cardiovascular workouts, and annual checkups.</em></p>
                         </div>
                     """, unsafe_allow_html=True)
+
+
+
+
+
+# ==========================================
+# TAB 4: GENERAL MEDICAL CHECKUP
+# ==========================================
+
+with tab_general:
+
+    st.subheader("🩺 General Medical Checkup")
+
+    st.write(
+        "Select the symptoms you are experiencing "
+        "to get AI-based disease predictions."
+    )
+
+    if models["general"] is None:
+
+        st.error(
+            "General disease model not found. "
+            "Please train general_model.pkl first."
+        )
+
+    else:
+
+        try:
+
+            # Load trained model artifacts
+            general_model, feature_names, general_encoder = models["general"]
+
+            st.markdown("---")
+
+            st.markdown("### Patient Information")
+
+            col1, col2 = st.columns(2)
+
+            with col1:
+                patient_age = st.number_input(
+                    "Age (Years)",
+                    min_value=1,
+                    max_value=120,
+                    value=25
+                )
+
+            with col2:
+                patient_gender = st.selectbox(
+                    "Gender",
+                    ["Male", "Female", "Other"]
+                )
+
+            st.markdown("---")
+
+            st.markdown("### Select Your Symptoms")
+
+            st.info(
+                "Search and select all symptoms "
+                "you are currently experiencing."
+            )
+
+            # Convert snake_case into readable names
+            symptom_mapping = {
+                symptom.replace("_", " ").title(): symptom
+                for symptom in feature_names
+            }
+
+            # Display readable symptom names
+            selected_symptoms = st.multiselect(
+                "Search Symptoms",
+                options=list(symptom_mapping.keys()),
+                placeholder="e.g. Nodal Skin Eruptions",
+                help="You can select multiple symptoms."
+            )
+
+            st.write(
+                f"Selected Symptoms: {len(selected_symptoms)}"
+            )
+
+            # Show selected symptoms
+            if selected_symptoms:
+
+                st.markdown("#### Your Selected Symptoms")
+
+                for symptom in selected_symptoms:
+                    st.write(f"✅ {symptom}")
+
+            st.markdown("---")
+
+            # Analyze button
+            analyze_general = st.button(
+                "🔍 Analyze General Health",
+                type="primary",
+                use_container_width=True
+            )
+
+            if analyze_general:
+
+                if not selected_symptoms:
+
+                    st.warning(
+                        "Please select at least one symptom."
+                    )
+
+                else:
+
+                    # Create input using original training columns
+                    input_df = pd.DataFrame(
+                        0,
+                        index=[0],
+                        columns=feature_names
+                    )
+
+                    # Set selected symptoms to 1
+                    for symptom in selected_symptoms:
+
+                        original_name = symptom_mapping[symptom]
+
+                        input_df.loc[0, original_name] = 1
+
+                    # Generate prediction probabilities
+                    probabilities = general_model.predict_proba(
+                        input_df
+                    )[0]
+
+                    # Sort predictions
+                    sorted_indices = np.argsort(probabilities)[::-1]
+
+                    # Get top prediction
+                    best_index = sorted_indices[0]
+
+                    predicted_class = general_model.classes_[best_index]
+
+                    predicted_disease = general_encoder.inverse_transform(
+                        [int(predicted_class)]
+                    )[0]
+
+                    prediction_score = probabilities[best_index] * 100
+
+                    st.markdown("---")
+
+                    st.markdown("## 🩺 Prediction Results")
+
+                    st.success(
+                        f"Top Predicted Disease: {predicted_disease}"
+                    )
+
+                    # Display prediction score
+                    st.metric(
+                        "Model Prediction Score",
+                        f"{prediction_score:.2f}%"
+                    )
+
+                    st.progress(
+                        float(probabilities[best_index])
+                    )
+
+                    st.caption(
+                        "This percentage represents the model's "
+                        "prediction score, not a clinically validated "
+                        "probability of disease."
+                    )
+
+                    # Top 5 predictions
+                    st.markdown("### Top 5 Possible Predictions")
+
+                    results = []
+
+                    for idx in sorted_indices[:5]:
+
+                        disease_id = general_model.classes_[idx]
+
+                        disease_name = general_encoder.inverse_transform(
+                            [int(disease_id)]
+                        )[0]
+
+                        score = probabilities[idx] * 100
+
+                        results.append({
+                            "Disease": disease_name,
+                            "Prediction Score (%)": round(score, 2)
+                        })
+
+                    results_df = pd.DataFrame(results)
+
+                    st.dataframe(
+                        results_df,
+                        use_container_width=True,
+                        hide_index=True
+                    )
+
+                    # Visualization
+                    st.markdown("### Prediction Comparison")
+
+                    chart_df = results_df.set_index("Disease")
+
+                    st.bar_chart(
+                        chart_df["Prediction Score (%)"]
+                    )
+
+                    st.warning(
+                        "⚠️ This is an experimental AI prediction, "
+                        "not a medical diagnosis. Consult a qualified "
+                        "healthcare professional for proper evaluation."
+                    )
+
+        except Exception as e:
+
+            st.error(f"General Checkup Error: {str(e)}")
+
+
+
+
+
+
 
 # ==========================================
 # FOOTER

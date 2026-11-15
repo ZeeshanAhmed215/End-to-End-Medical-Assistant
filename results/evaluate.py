@@ -22,8 +22,14 @@ models_config = {
         "data_file": r"D:\End-to-End-Medical-Assistant\datasets\clean_heart.csv", # Cleaned unified file that was split
         "target_col": "target",
         "use_split": True # Recreate the same 80/20 split
-    }
-}
+    },
+    "General Disease Model": {
+            "model_path": r"D:\End-to-End-Medical-Assistant\models\general_model.pkl",
+            "data_file": r"D:\End-to-End-Medical-Assistant\datasets\general_testing.csv", # Cleaned unified file that was split
+            "target_col": "target",
+            "use_split": False # Recreate the same 80/20 split
+        }
+}   
 
 results = []
 
