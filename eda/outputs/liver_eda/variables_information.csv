@@ -1,0 +1,12 @@
+name,role,type,demographic,description,units,missing_values
+Age,Feature,Integer,Age,"Age of the patient. Any patient whose age exceeded 89 is listed as being of age ""90"".",years,no
+Gender,Feature,Binary,Gender,Gender of the patient,,no
+TB,Feature,Continuous,,Total Bilirubin,,no
+DB,Feature,Continuous,,Direct Bilirubin,,no
+Alkphos,Feature,Integer,,Alkaline Phosphotase,,no
+Sgpt,Feature,Integer,,Alamine Aminotransferase,,no
+Sgot,Feature,Integer,,Aspartate Aminotransferase,,no
+TP,Feature,Continuous,,Total Proteins,,no
+ALB,Feature,Continuous,,Albumin,,no
+A/G Ratio,Feature,Continuous,,Albumin and Globulin Ratio,,no
+Selector,Target,Binary,,Selector field used to split the data into two sets (labeled by the experts),,no

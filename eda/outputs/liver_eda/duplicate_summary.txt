@@ -1,0 +1,5 @@
+DUPLICATE ANALYSIS
+========================================
+Total rows: 583
+Duplicate rows: 13
+Duplicate percentage: 2.23%

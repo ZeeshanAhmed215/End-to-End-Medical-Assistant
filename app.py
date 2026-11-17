@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import joblib
 import os
+from pathlib import Path
 
 # ==========================================
 # PAGE CONFIGURATION & STYLING
@@ -61,32 +62,40 @@ st.markdown("""
 # ==========================================
 # LOAD MODELS SAFELY
 # ==========================================
+BASE_DIR = Path(__file__).resolve().parent
+MODEL_DIR = BASE_DIR / "models"
+
+
 @st.cache_resource
-def load_models():
+def load_model(model_path: Path):
+    return joblib.load(model_path)
+
+
+def load_models(model_dir: Path):
     models = {}
     try:
-        models["cancer"] = joblib.load(r"D:\End-to-End-Medical-Assistant\models\cancer_random_forest.pkl")
+        models["cancer"] = load_model(model_dir / "cancer_random_forest.pkl")
     except Exception:
         models["cancer"] = None
         
     try:
-        models["diabetes"] = joblib.load(r"D:\End-to-End-Medical-Assistant\models\diabetes_random_forest.pkl")
+        models["diabetes"] = load_model(model_dir / "diabetes_random_forest.pkl")
     except Exception:
         models["diabetes"] = None
         
     try:
-        models["heart"] = joblib.load(r"D:\End-to-End-Medical-Assistant\models\heart_random_forest.pkl")
+        models["heart"] = load_model(model_dir / "heart_random_forest.pkl")
     except Exception:
         models["heart"] = None
         
     try:
-        models["general"] = joblib.load(r"D:\End-to-End-Medical-Assistant\models\general_model.pkl")
+        models["general"] = load_model(model_dir / "general_model.pkl")
     except Exception:
         models["general"] = None
-        
+
     return models
 
-models = load_models()
+models = load_models(MODEL_DIR)
 
 # ==========================================
 # HEADER & DISCLAIMER
@@ -104,12 +113,14 @@ st.markdown("""
 # ==========================================
 # MAIN TABS INTERFACE
 # ==========================================
-tab_cancer, tab_diabetes, tab_heart, tab_general = st.tabs([
+tab_cancer, tab_diabetes, tab_heart, tab_liver, tab_general = st.tabs([
     "🎗️ Cancer Risk Triage",
     "🩸 Diabetes Risk Triage",
     "❤️ Heart Disease Risk Triage",
+    "🫀 Liver Disease Risk Triage",
     "🩺 General Checkup"
 ])
+
 
 # ==========================================
 # TAB 1: CANCER MODEL
@@ -292,11 +303,92 @@ with tab_heart:
                     """, unsafe_allow_html=True)
 
 
+# ==========================================
+# TAB 4: LIVER MODEL
+# ==========================================
+with tab_liver:
+    st.subheader("Liver Disease Risk Assessment")
+    st.write("Enter the liver function measurements used by the trained model.")
+
+    liver_model_path = MODEL_DIR / "liver_model.pkl"
+    if not liver_model_path.is_file():
+        st.error(
+            f"⚠️ Liver model file not found at: {liver_model_path}"
+        )
+    else:
+        try:
+            liver_model = load_model(liver_model_path)
+        except Exception as exc:
+            st.error(
+                f"⚠️ Failed to load liver model at {liver_model_path}: {exc}"
+            )
+        else:
+            with st.form("liver_form"):
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    age_l = st.number_input("Age", min_value=1, max_value=120, value=45, key="l_age")
+                    gender_l = st.selectbox("Gender", options=["Female", "Male"], key="l_gender")
+                    tb_l = st.number_input("Total Bilirubin (TB)", min_value=0.0, value=1.0, format="%.2f")
+                    db_l = st.number_input("Direct Bilirubin (DB)", min_value=0.0, value=0.3, format="%.2f")
+                with col2:
+                    alkphos_l = st.number_input("Alkaline Phosphatase", min_value=0.0, value=200.0, format="%.1f")
+                    sgpt_l = st.number_input("Alanine Aminotransferase (SGPT)", min_value=0.0, value=30.0, format="%.1f")
+                    sgot_l = st.number_input("Aspartate Aminotransferase (SGOT)", min_value=0.0, value=35.0, format="%.1f")
+                with col3:
+                    tp_l = st.number_input("Total Protein (TP)", min_value=0.0, value=6.5, format="%.2f")
+                    alb_l = st.number_input("Albumin (ALB)", min_value=0.0, value=3.2, format="%.2f")
+                    ag_l = st.number_input("Albumin/Globulin Ratio", min_value=0.0, value=0.9, format="%.2f")
+
+                submit_liver = st.form_submit_button("Analyze Liver Risk")
+
+                if submit_liver:
+                    liver_input = pd.DataFrame([{
+                        "Age": age_l,
+                        "Gender": gender_l,
+                        "TB": tb_l,
+                        "DB": db_l,
+                        "Alkphos": alkphos_l,
+                        "Sgpt": sgpt_l,
+                        "Sgot": sgot_l,
+                        "TP": tp_l,
+                        "ALB": alb_l,
+                        "A/G Ratio": ag_l,
+                    }])
+                    expected_columns = list(liver_model.feature_names_in_)
+                    if list(liver_input.columns) != expected_columns:
+                        st.error(
+                            "Liver model feature mismatch. "
+                            f"Expected {expected_columns}, got {list(liver_input.columns)}."
+                        )
+                    else:
+                        probability = liver_model.predict_proba(liver_input)[0, 1]
+                        risk_percentage = probability * 100
+
+                        st.markdown("---")
+                        st.markdown("### Evaluation Results")
+                        if risk_percentage > 50:
+                            st.markdown(f"""
+                                <div class="result-card-high">
+                                    <h3>Higher Liver Disease Risk Detected</h3>
+                                    <p>Liver Disease Probability: <strong>{risk_percentage:.2f}%</strong></p>
+                                    <p><em>Please consult a qualified physician for clinical evaluation.</em></p>
+                                </div>
+                            """, unsafe_allow_html=True)
+                        else:
+                            st.markdown(f"""
+                                <div class="result-card-low">
+                                    <h3>Lower Liver Disease Risk Detected</h3>
+                                    <p>Liver Disease Probability: <strong>{risk_percentage:.2f}%</strong></p>
+                                    <p><em>This screening result is not a diagnosis; consult a qualified physician.</em></p>
+                                </div>
+                            """, unsafe_allow_html=True)
+
+
 
 
 
 # ==========================================
-# TAB 4: GENERAL MEDICAL CHECKUP
+# TAB 5: GENERAL MEDICAL CHECKUP
 # ==========================================
 
 with tab_general:
