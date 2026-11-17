@@ -1,605 +1,749 @@
-import streamlit as st
-import pandas as pd
-import numpy as np
-import joblib
-import os
+"""Streamlit interface for the End-to-End Medical Assistant."""
+
 from pathlib import Path
 
-# ==========================================
-# PAGE CONFIGURATION & STYLING
-# ==========================================
-st.set_page_config(
-    page_title="AI Medical Triage Assistant",
-    page_icon="🩺",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+import joblib
+import numpy as np
+import pandas as pd
+import streamlit as st
 
-# Custom CSS for high-level professional UI styling
-st.markdown("""
-    <style>
-    .main-header {
-        font-size: 2.5rem;
-        color: #1E3A8A;
-        font-weight: 700;
-        text-align: center;
-        margin-bottom: 0.5rem;
-    }
-    .sub-header {
-        font-size: 1.2rem;
-        color: #4B5563;
-        text-align: center;
-        margin-bottom: 2rem;
-    }
-    .disclaimer-box {
-        padding: 1rem;
-        background-color: #FEF3C7;
-        border-left: 5px solid #F59E0B;
-        color: #92400E;
-        font-weight: 500;
-        border-radius: 4px;
-        margin-bottom: 1.5rem;
-    }
-    .result-card-high {
-        padding: 1.5rem;
-        background-color: #FEE2E2;
-        border: 2px solid #EF4444;
-        border-radius: 8px;
-        color: #991B1B;
-        text-align: center;
-    }
-    .result-card-low {
-        padding: 1.5rem;
-        background-color: #ECFDF5;
-        border: 2px solid #10B981;
-        border-radius: 8px;
-        color: #065F46;
-        text-align: center;
-    }
-    </style>
-""", unsafe_allow_html=True)
 
-# ==========================================
-# LOAD MODELS SAFELY
-# ==========================================
 BASE_DIR = Path(__file__).resolve().parent
 MODEL_DIR = BASE_DIR / "models"
+
+MODEL_FILES = {
+    "heart": "heart_random_forest.pkl",
+    "diabetes": "diabetes_random_forest.pkl",
+    "cancer": "cancer_random_forest.pkl",
+    "general": "general_model.pkl",
+    "liver": "liver_model.pkl",
+}
+
+st.set_page_config(
+    page_title="MedSight | Clinical Decision Support",
+    page_icon="🩺",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
+
+st.markdown(
+    """
+    <style>
+    :root {
+        --navy: #e0e0e0;
+        --navy-light: #b8c2c8;
+        --teal: #00adb5;
+        --teal-light: #17383b;
+        --emerald: #22c55e;
+        --ink: #e0e0e0;
+        --muted: #a7b0b5;
+        --line: #333333;
+        --canvas: #121212;
+        --white: #1e1e1e;
+    }
+
+    .stApp {
+        background: var(--canvas);
+        color: var(--ink);
+    }
+
+    [data-testid="stHeader"] {
+        background: transparent;
+    }
+
+    [data-testid="stSidebar"] {
+        background: #171717;
+        border-right: 1px solid #2d2d2d;
+    }
+
+    [data-testid="stSidebar"] * {
+        color: #e6f0f7;
+    }
+
+    [data-testid="stSidebar"] .stRadio label {
+        border-radius: 8px;
+        padding: 0.35rem 0.5rem;
+    }
+
+    [data-testid="stSidebar"] .stRadio label:hover {
+        background: rgba(255, 255, 255, 0.1);
+    }
+
+    .block-container {
+        max-width: 1440px;
+        padding-top: 2rem;
+        padding-bottom: 3rem;
+    }
+
+    .brand-mark {
+        color: #ffffff;
+        font-size: 1.35rem;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        margin-bottom: 0.15rem;
+    }
+
+    .brand-subtitle {
+        color: #9fb6c8;
+        font-size: 0.78rem;
+        margin-bottom: 1.8rem;
+    }
+
+    .eyebrow {
+        color: var(--teal);
+        font-size: 0.75rem;
+        font-weight: 800;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        margin-bottom: 0.3rem;
+    }
+
+    .page-title {
+        color: var(--navy);
+        font-size: 2.45rem;
+        font-weight: 800;
+        letter-spacing: -0.04em;
+        line-height: 1.08;
+        margin: 0;
+    }
+
+    .page-subtitle {
+        color: var(--muted);
+        font-size: 1rem;
+        line-height: 1.6;
+        margin: 0.65rem 0 1.5rem;
+        max-width: 760px;
+    }
+
+    .hero-card,
+    .section-card,
+    .module-card,
+    .result-card {
+        background: var(--white);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        box-shadow: 0 5px 18px rgba(16, 42, 67, 0.05);
+    }
+
+    .hero-card {
+        background: linear-gradient(135deg, #17383b 0%, #1e1e1e 68%);
+        border-color: #245c60;
+        padding: 1.5rem 1.7rem;
+        margin: 0.5rem 0 1.2rem;
+    }
+
+    .hero-card h3,
+    .module-card h3 {
+        color: var(--navy);
+        margin: 0 0 0.45rem;
+    }
+
+    .hero-card p,
+    .module-card p {
+        color: var(--muted);
+        line-height: 1.55;
+        margin: 0;
+    }
+
+    .section-card {
+        padding: 1.25rem 1.35rem;
+        margin: 1rem 0;
+    }
+
+    .section-heading {
+        color: var(--navy);
+        font-size: 1.1rem;
+        font-weight: 750;
+        margin: 0 0 0.2rem;
+    }
+
+    .section-caption {
+        color: var(--muted);
+        font-size: 0.87rem;
+        margin: 0 0 0.8rem;
+    }
+
+    .module-card {
+        min-height: 145px;
+        padding: 1.15rem;
+        margin-bottom: 0.8rem;
+    }
+
+    .module-icon {
+        font-size: 1.7rem;
+        margin-bottom: 0.4rem;
+    }
+
+    .module-label {
+        color: var(--teal);
+        font-size: 0.72rem;
+        font-weight: 800;
+        letter-spacing: 0.09em;
+        text-transform: uppercase;
+    }
+
+    .result-card {
+        border-top: 4px solid var(--teal);
+        padding: 1.35rem;
+        margin-top: 1rem;
+    }
+
+    .result-card.high {
+        border-top-color: #dc2626;
+    }
+
+    .result-card.low {
+        border-top-color: var(--emerald);
+    }
+
+    .result-card h3 {
+        color: var(--navy);
+        margin: 0 0 0.25rem;
+    }
+
+    .result-card p {
+        color: var(--muted);
+        margin: 0;
+    }
+
+    .recommendation {
+        border-radius: 9px;
+        font-size: 0.9rem;
+        line-height: 1.45;
+        margin-top: 0.8rem;
+        padding: 0.75rem 0.9rem;
+    }
+
+    .recommendation.high {
+        background: #3a1d20;
+        border: 1px solid #7f3038;
+        color: #fda4af;
+    }
+
+    .recommendation.low {
+        background: #163326;
+        border: 1px solid #28734a;
+        color: #86efac;
+    }
+
+    .status-pill {
+        background: var(--teal-light);
+        border-radius: 999px;
+        color: var(--teal);
+        display: inline-block;
+        font-size: 0.76rem;
+        font-weight: 750;
+        padding: 0.35rem 0.75rem;
+    }
+
+    .disclaimer {
+        background: #332b19;
+        border: 1px solid #735d2a;
+        border-left: 4px solid #d99a2b;
+        border-radius: 10px;
+        color: #f3cf83;
+        font-size: 0.86rem;
+        line-height: 1.5;
+        padding: 0.85rem 1rem;
+        margin: 1rem 0 1.5rem;
+    }
+
+    div.stButton > button,
+    div[data-testid="stFormSubmitButton"] > button {
+        background: var(--teal);
+        border: 0;
+        border-radius: 8px;
+        color: #ffffff;
+        font-weight: 750;
+        min-height: 2.65rem;
+    }
+
+    div.stButton > button:hover,
+    div[data-testid="stFormSubmitButton"] > button:hover {
+        background: #115e59;
+        color: #ffffff;
+    }
+
+    footer {
+        visibility: hidden;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
 
 @st.cache_resource
 def load_model(model_path: Path):
+    """Load a model from a resolved path and cache successful loads."""
     return joblib.load(model_path)
 
 
 def load_models(model_dir: Path):
     models = {}
-    try:
-        models["cancer"] = load_model(model_dir / "cancer_random_forest.pkl")
-    except Exception:
-        models["cancer"] = None
-        
-    try:
-        models["diabetes"] = load_model(model_dir / "diabetes_random_forest.pkl")
-    except Exception:
-        models["diabetes"] = None
-        
-    try:
-        models["heart"] = load_model(model_dir / "heart_random_forest.pkl")
-    except Exception:
-        models["heart"] = None
-        
-    try:
-        models["general"] = load_model(model_dir / "general_model.pkl")
-    except Exception:
-        models["general"] = None
-
-    return models
-
-models = load_models(MODEL_DIR)
-
-# ==========================================
-# HEADER & DISCLAIMER
-# ==========================================
-st.markdown('<div class="main-header">🩺 AI Medical Triage Assistant</div>', unsafe_allow_html=True)
-st.markdown('<div class="sub-header">Advanced Machine Learning Diagnostic Decision Support System</div>', unsafe_allow_html=True)
-
-st.markdown("""
-<div class="disclaimer-box">
-    ⚠️ <strong>CRITICAL MEDICAL DISCLAIMER:</strong> This application is a decision-support tool powered by machine learning models and is intended for informational and educational purposes only. 
-    It <strong>does not</strong> provide formal clinical diagnoses. Always consult a qualified specialist (e.g., Cardiologist, Oncologist, Endocrinologist) for professional medical advice, testing, and treatment plans.
-</div>
-""", unsafe_allow_html=True)
-
-# ==========================================
-# MAIN TABS INTERFACE
-# ==========================================
-tab_cancer, tab_diabetes, tab_heart, tab_liver, tab_general = st.tabs([
-    "🎗️ Cancer Risk Triage",
-    "🩸 Diabetes Risk Triage",
-    "❤️ Heart Disease Risk Triage",
-    "🫀 Liver Disease Risk Triage",
-    "🩺 General Checkup"
-])
-
-
-# ==========================================
-# TAB 1: CANCER MODEL
-# ==========================================
-with tab_cancer:
-    st.subheader("Breast Cancer Risk Assessment")
-    st.write("Provide the morphological characteristics to evaluate malignancy risk.")
-    
-    if models["cancer"] is None:
-        st.error("⚠️ Model file `cancer_random_forest.pkl` not found. Please train and save the model first.")
-    else:
-        with st.form("cancer_form"):
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                mean_radius = st.number_input("Mean Radius", value=14.0, format="%.2f")
-                mean_texture = st.number_input("Mean Texture", value=20.0, format="%.2f")
-                mean_perimeter = st.number_input("Mean Perimeter", value=90.0, format="%.2f")
-            with col2:
-                mean_area = st.number_input("Mean Area", value=600.0, format="%.2f")
-                mean_smoothness = st.number_input("Mean Smoothness", value=0.1, format="%.4f")
-                worst_radius = st.number_input("Worst Radius", value=16.0, format="%.2f")
-            with col3:
-                worst_texture = st.number_input("Worst Texture", value=25.0, format="%.2f")
-                worst_perimeter = st.number_input("Worst Perimeter", value=100.0, format="%.2f")
-                worst_area = st.number_input("Worst Area", value=700.0, format="%.2f")
-            
-            submit_cancer = st.form_submit_button("Analyze Cancer Risk")
-            
-            if submit_cancer:
-                # Construct feature array matching training schema (approximate mapping based on standard dataset features)
-                # Ensure feature count matches your saved model expectation
-                input_data = np.array([[mean_radius, mean_texture, mean_perimeter, mean_area, 
-                                        mean_smoothness, worst_radius, worst_texture, worst_perimeter, worst_area]])
-                
-                # Handling feature dimension padding if model expects full set
-                expected_features = models["cancer"].n_features_in_
-                if input_data.shape[1] < expected_features:
-                    input_data = np.pad(input_data, ((0, 0), (0, expected_features - input_data.shape[1])), 'constant')
-                
-                prob = models["cancer"].predict_proba(input_data)[0][1]
-                pred = models["cancer"].predict(input_data)[0]
-                
-                st.markdown("---")
-                st.markdown("### Evaluation Results")
-                risk_percentage = prob * 100
-                
-                if risk_percentage > 50:
-                    st.markdown(f"""
-                        <div class="result-card-high">
-                            <h3>High Risk Detected</h3>
-                            <p>Malignancy Probability: <strong>{risk_percentage:.2f}%</strong></p>
-                            <p><em>Recommendation: Immediate consultation with an Oncologist for diagnostic biopsy is strongly advised.</em></p>
-                        </div>
-                    """, unsafe_allow_html=True)
-                else:
-                    st.markdown(f"""
-                        <div class="result-card-low">
-                            <h3>Low Risk Detected</h3>
-                            <p>Malignancy Probability: <strong>{risk_percentage:.2f}%</strong></p>
-                            <p><em>Recommendation: Routine annual screenings recommended. Consult your primary physician if symptoms change.</em></p>
-                        </div>
-                    """, unsafe_allow_html=True)
-
-# ==========================================
-# TAB 2: DIABETES MODEL
-# ==========================================
-with tab_diabetes:
-    st.subheader("Diabetes Risk Assessment")
-    st.write("Enter metabolic and clinical indicators for diabetes screening.")
-    
-    if models["diabetes"] is None:
-        st.error("⚠️ Model file `diabetes_random_forest.pkl` not found. Please train and save the model first.")
-    else:
-        with st.form("diabetes_form"):
-            col1, col2 = st.columns(2)
-            with col1:
-                pregnancies = st.number_input("Pregnancies", min_value=0, max_value=20, value=1)
-                glucose = st.number_input("Glucose Level (mg/dL)", min_value=0, max_value=300, value=120)
-                blood_pressure = st.number_input("Blood Pressure (mmHg)", min_value=0, max_value=200, value=70)
-                skin_thickness = st.number_input("Skin Thickness (mm)", min_value=0, max_value=100, value=20)
-            with col2:
-                insulin = st.number_input("Insulin Level (mu U/ml)", min_value=0, max_value=900, value=80)
-                bmi = st.number_input("BMI (Body Mass Index)", min_value=0.0, max_value=70.0, value=25.0, format="%.1f")
-                dpf = st.number_input("Diabetes Pedigree Function", min_value=0.0, max_value=3.0, value=0.5, format="%.3f")
-                age = st.number_input("Age (years)", min_value=1, max_value=120, value=35)
-                
-            submit_diabetes = st.form_submit_button("Analyze Diabetes Risk")
-            
-            if submit_diabetes:
-                input_data = np.array([[pregnancies, glucose, blood_pressure, skin_thickness, insulin, bmi, dpf, age]])
-                
-                expected_features = models["diabetes"].n_features_in_
-                if input_data.shape[1] < expected_features:
-                    input_data = np.pad(input_data, ((0, 0), (0, expected_features - input_data.shape[1])), 'constant')
-                    
-                prob = models["diabetes"].predict_proba(input_data)[0][1]
-                risk_percentage = prob * 100
-                
-                st.markdown("---")
-                st.markdown("### Evaluation Results")
-                
-                if risk_percentage > 50:
-                    st.markdown(f"""
-                        <div class="result-card-high">
-                            <h3>High Risk Detected</h3>
-                            <p>Diabetes Probability: <strong>{risk_percentage:.2f}%</strong></p>
-                            <p><em>Recommendation: Consult an Endocrinologist for an HbA1c or Fasting Plasma Glucose test.</em></p>
-                        </div>
-                    """, unsafe_allow_html=True)
-                else:
-                    st.markdown(f"""
-                        <div class="result-card-low">
-                            <h3>Low Risk Detected</h3>
-                            <p>Diabetes Probability: <strong>{risk_percentage:.2f}%</strong></p>
-                            <p><em>Recommendation: Maintain a balanced diet, regular exercise, and periodic metabolic checkups.</em></p>
-                        </div>
-                    """, unsafe_allow_html=True)
-
-# ==========================================
-# TAB 3: HEART DISEASE MODEL
-# ==========================================
-with tab_heart:
-    st.subheader("Heart Disease Risk Assessment")
-    st.write("Enter cardiovascular parameters to check cardiac risk status.")
-    
-    if models["heart"] is None:
-        st.error("⚠️ Model file `heart_random_forest.pkl` not found. Please train and save the model first.")
-    else:
-        with st.form("heart_form"):
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                age_h = st.number_input("Age", min_value=1, max_value=120, value=50, key="h_age")
-                sex_h = st.selectbox("Sex", options=[0, 1], format_func=lambda x: "Female" if x == 0 else "Male")
-                cp_h = st.selectbox("Chest Pain Type (cp)", options=[0, 1, 2, 3], format_func=lambda x: ["Typical Angina", "Atypical Angina", "Non-anginal Pain", "Asymptomatic"][x])
-                trestbps_h = st.number_input("Resting Blood Pressure (mmHg)", min_value=80, max_value=250, value=130)
-            with col2:
-                chol_h = st.number_input("Cholesterol (mg/dl)", min_value=100, max_value=600, value=240)
-                fbs_h = st.selectbox("Fasting Blood Sugar > 120 mg/dl", options=[0, 1], format_func=lambda x: "No" if x == 0 else "Yes")
-                restecg_h = st.selectbox("Resting ECG Results", options=[0, 1, 2])
-                thalach_h = st.number_input("Max Heart Rate Achieved", min_value=60, max_value=220, value=150)
-            with col3:
-                exang_h = st.selectbox("Exercise Induced Angina", options=[0, 1], format_func=lambda x: "No" if x == 0 else "Yes")
-                oldpeak_h = st.number_input("ST Depression (Oldpeak)", min_value=0.0, max_value=10.0, value=1.0, format="%.1f")
-                slope_h = st.selectbox("Slope of Peak Exercise ST Segment", options=[0, 1, 2])
-                ca_h = st.selectbox("Number of Major Vessels (0-3)", options=[0, 1, 2, 3])
-                
-            submit_heart = st.form_submit_button("Analyze Heart Risk")
-            
-            if submit_heart:
-                # Basic representation matching feature structure of clean heart dataset
-                input_data = np.array([[age_h, sex_h, cp_h, trestbps_h, chol_h, fbs_h, restecg_h, thalach_h, exang_h, oldpeak_h, slope_h, ca_h]])
-                
-                expected_features = models["heart"].n_features_in_
-                if input_data.shape[1] < expected_features:
-                    input_data = np.pad(input_data, ((0, 0), (0, expected_features - input_data.shape[1])), 'constant')
-                elif input_data.shape[1] > expected_features:
-                    input_data = input_data[:, :expected_features]
-                    
-                prob = models["heart"].predict_proba(input_data)[0][1]
-                risk_percentage = prob * 100
-                
-                st.markdown("---")
-                st.markdown("### Evaluation Results")
-                
-                if risk_percentage > 50:
-                    st.markdown(f"""
-                        <div class="result-card-high">
-                            <h3>High Cardiovascular Risk Detected</h3>
-                            <p>Heart Disease Probability: <strong>{risk_percentage:.2f}%</strong></p>
-                            <p><em>Recommendation: Urgent consultation with a <strong>Cardiologist</strong> for an ECG, stress test, or cardiac evaluation is strongly recommended.</em></p>
-                        </div>
-                    """, unsafe_allow_html=True)
-                else:
-                    st.markdown(f"""
-                        <div class="result-card-low">
-                            <h3>Low Cardiovascular Risk Detected</h3>
-                            <p>Heart Disease Probability: <strong>{risk_percentage:.2f}%</strong></p>
-                            <p><em>Recommendation: Maintain heart-healthy habits, regular cardiovascular workouts, and annual checkups.</em></p>
-                        </div>
-                    """, unsafe_allow_html=True)
-
-
-# ==========================================
-# TAB 4: LIVER MODEL
-# ==========================================
-with tab_liver:
-    st.subheader("Liver Disease Risk Assessment")
-    st.write("Enter the liver function measurements used by the trained model.")
-
-    liver_model_path = MODEL_DIR / "liver_model.pkl"
-    if not liver_model_path.is_file():
-        st.error(
-            f"⚠️ Liver model file not found at: {liver_model_path}"
-        )
-    else:
+    errors = {}
+    for model_name, filename in MODEL_FILES.items():
+        path = model_dir / filename
         try:
-            liver_model = load_model(liver_model_path)
+            models[model_name] = load_model(path)
         except Exception as exc:
-            st.error(
-                f"⚠️ Failed to load liver model at {liver_model_path}: {exc}"
-            )
-        else:
-            with st.form("liver_form"):
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    age_l = st.number_input("Age", min_value=1, max_value=120, value=45, key="l_age")
-                    gender_l = st.selectbox("Gender", options=["Female", "Male"], key="l_gender")
-                    tb_l = st.number_input("Total Bilirubin (TB)", min_value=0.0, value=1.0, format="%.2f")
-                    db_l = st.number_input("Direct Bilirubin (DB)", min_value=0.0, value=0.3, format="%.2f")
-                with col2:
-                    alkphos_l = st.number_input("Alkaline Phosphatase", min_value=0.0, value=200.0, format="%.1f")
-                    sgpt_l = st.number_input("Alanine Aminotransferase (SGPT)", min_value=0.0, value=30.0, format="%.1f")
-                    sgot_l = st.number_input("Aspartate Aminotransferase (SGOT)", min_value=0.0, value=35.0, format="%.1f")
-                with col3:
-                    tp_l = st.number_input("Total Protein (TP)", min_value=0.0, value=6.5, format="%.2f")
-                    alb_l = st.number_input("Albumin (ALB)", min_value=0.0, value=3.2, format="%.2f")
-                    ag_l = st.number_input("Albumin/Globulin Ratio", min_value=0.0, value=0.9, format="%.2f")
-
-                submit_liver = st.form_submit_button("Analyze Liver Risk")
-
-                if submit_liver:
-                    liver_input = pd.DataFrame([{
-                        "Age": age_l,
-                        "Gender": gender_l,
-                        "TB": tb_l,
-                        "DB": db_l,
-                        "Alkphos": alkphos_l,
-                        "Sgpt": sgpt_l,
-                        "Sgot": sgot_l,
-                        "TP": tp_l,
-                        "ALB": alb_l,
-                        "A/G Ratio": ag_l,
-                    }])
-                    expected_columns = list(liver_model.feature_names_in_)
-                    if list(liver_input.columns) != expected_columns:
-                        st.error(
-                            "Liver model feature mismatch. "
-                            f"Expected {expected_columns}, got {list(liver_input.columns)}."
-                        )
-                    else:
-                        probability = liver_model.predict_proba(liver_input)[0, 1]
-                        risk_percentage = probability * 100
-
-                        st.markdown("---")
-                        st.markdown("### Evaluation Results")
-                        if risk_percentage > 50:
-                            st.markdown(f"""
-                                <div class="result-card-high">
-                                    <h3>Higher Liver Disease Risk Detected</h3>
-                                    <p>Liver Disease Probability: <strong>{risk_percentage:.2f}%</strong></p>
-                                    <p><em>Please consult a qualified physician for clinical evaluation.</em></p>
-                                </div>
-                            """, unsafe_allow_html=True)
-                        else:
-                            st.markdown(f"""
-                                <div class="result-card-low">
-                                    <h3>Lower Liver Disease Risk Detected</h3>
-                                    <p>Liver Disease Probability: <strong>{risk_percentage:.2f}%</strong></p>
-                                    <p><em>This screening result is not a diagnosis; consult a qualified physician.</em></p>
-                                </div>
-                            """, unsafe_allow_html=True)
+            models[model_name] = None
+            errors[model_name] = f"{path}: {exc}"
+    return models, errors
 
 
+models, model_errors = load_models(MODEL_DIR)
 
 
-
-# ==========================================
-# TAB 5: GENERAL MEDICAL CHECKUP
-# ==========================================
-
-with tab_general:
-
-    st.subheader("🩺 General Medical Checkup")
-
-    st.write(
-        "Select the symptoms you are experiencing "
-        "to get AI-based disease predictions."
+def page_header(eyebrow, title, description):
+    st.markdown(f'<div class="eyebrow">{eyebrow}</div>', unsafe_allow_html=True)
+    st.markdown(f'<h1 class="page-title">{title}</h1>', unsafe_allow_html=True)
+    st.markdown(
+        f'<p class="page-subtitle">{description}</p>',
+        unsafe_allow_html=True,
     )
 
-    if models["general"] is None:
 
-        st.error(
-            "General disease model not found. "
-            "Please train general_model.pkl first."
+def section_heading(title, caption):
+    st.markdown(
+        f"""
+        <div class="section-heading">{title}</div>
+        <div class="section-caption">{caption}</div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def model_gate(model_name):
+    if models.get(model_name) is not None:
+        return models[model_name]
+    st.error(
+        f"Unable to load the {model_name} model. "
+        f"Expected artifact: {MODEL_DIR / MODEL_FILES[model_name]}. "
+        f"Details: {model_errors.get(model_name, 'Unknown loading error')}"
+    )
+    return None
+
+
+def show_range_warnings(values):
+    warnings = []
+    for label, value, lower, upper in values:
+        if value < lower or value > upper:
+            warnings.append(f"{label}: {value:g} is outside the typical range.")
+    if warnings:
+        st.warning(
+            "Please review these values before continuing: "
+            + " ".join(warnings)
         )
 
+
+def make_model_input(model, values):
+    expected_columns = list(model.feature_names_in_)
+    if len(values) != len(expected_columns):
+        raise ValueError(
+            f"Expected {len(expected_columns)} model features, received {len(values)}."
+        )
+    return pd.DataFrame([values], columns=expected_columns)
+
+
+def render_risk_assessment(probability: float):
+    """Render a consistent probability, progress, and triage assessment."""
+    probability = float(np.clip(probability, 0.0, 1.0))
+    percentage = probability * 100
+
+    if probability < 0.30:
+        category = "Low risk"
+        guidance = "Routine monitoring is recommended. Continue healthy habits and scheduled care."
+        message = "Low-risk signal"
+        render_message = st.success
+    elif probability < 0.70:
+        category = "Moderate risk"
+        guidance = "Follow-up with a qualified healthcare professional is recommended."
+        message = "Moderate-risk signal"
+        render_message = st.warning
     else:
+        category = "High risk"
+        guidance = "Please seek urgent medical consultation to review this result."
+        message = "High-risk signal"
+        render_message = st.error
 
-        try:
+    with st.container(border=True):
+        st.subheader("Risk assessment")
+        st.metric("Estimated probability", f"{percentage:.2f}%")
+        st.progress(probability)
+        st.caption(f"{percentage:.2f}% estimated model score")
+        render_message(f"{category}: {message}")
+        st.caption(guidance)
+        st.caption("This is decision support, not a clinical diagnosis.")
 
-            # Load trained model artifacts
-            general_model, feature_names, general_encoder = models["general"]
 
-            st.markdown("---")
+def render_sidebar():
+    with st.sidebar:
+        st.markdown('<div class="brand-mark">🩺 MedSight</div>', unsafe_allow_html=True)
+        st.markdown(
+            '<div class="brand-subtitle">Clinical decision support workspace</div>',
+            unsafe_allow_html=True,
+        )
+        st.markdown("#### Workspace")
+        route = st.radio(
+            "Navigate",
+            [
+                "Home",
+                "Heart Disease",
+                "Diabetes",
+                "Cancer",
+                "Liver Disease",
+                "General Checkup",
+            ],
+            label_visibility="collapsed",
+        )
+        st.markdown("---")
+        st.markdown("#### System status")
+        available = sum(model is not None for model in models.values())
+        st.markdown(
+            f'<span class="status-pill">{available}/5 models online</span>',
+            unsafe_allow_html=True,
+        )
+        st.caption("Artifacts are loaded from the application directory.")
+        return route
 
-            st.markdown("### Patient Information")
 
-            col1, col2 = st.columns(2)
+def render_home():
+    page_header(
+        "Clinical intelligence platform",
+        "A clearer view of patient risk.",
+        "MedSight brings five specialized machine-learning assessments into one calm, "
+        "structured workspace for informed clinical conversations.",
+    )
+    st.markdown(
+        """
+        <div class="hero-card">
+            <h3>Decision support, designed for focus</h3>
+            <p>Choose an assessment from the sidebar, enter the available clinical
+            indicators, and review a transparent model score. Results are educational
+            signals and should always be interpreted by a qualified professional.</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    stat_one, stat_two, stat_three = st.columns(3)
+    stat_one.metric("Assessment modules", "5")
+    stat_two.metric("Model artifacts", f"{sum(model is not None for model in models.values())}/5")
+    stat_three.metric("Path safety", "Enabled")
 
-            with col1:
-                patient_age = st.number_input(
-                    "Age (Years)",
-                    min_value=1,
-                    max_value=120,
-                    value=25
+    st.markdown("### Choose an assessment")
+    modules = [
+        ("❤️", "Heart Disease", "Cardiovascular indicators and cardiac risk screening."),
+        ("🩸", "Diabetes", "Metabolic measurements and diabetes risk screening."),
+        ("🎗️", "Cancer", "Morphological characteristics for malignancy risk screening."),
+        ("🫀", "Liver Disease", "Liver function measurements and disease risk screening."),
+        ("🩺", "General Checkup", "Symptom-based multi-disease prediction."),
+    ]
+    for start in range(0, len(modules), 3):
+        columns = st.columns(3)
+        for column, (icon, name, description) in zip(columns, modules[start:start + 3]):
+            with column:
+                st.markdown(
+                    f"""
+                    <div class="module-card">
+                        <div class="module-icon">{icon}</div>
+                        <div class="module-label">{name}</div>
+                        <p>{description}</p>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
                 )
+    st.markdown(
+        """
+        <div class="disclaimer">
+            <strong>Important:</strong> MedSight is an experimental decision-support
+            application. It does not diagnose, treat, or replace advice from a
+            licensed healthcare professional.
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
-            with col2:
-                patient_gender = st.selectbox(
-                    "Gender",
-                    ["Male", "Female", "Other"]
-                )
 
-            st.markdown("---")
+def render_heart():
+    page_header(
+        "Cardiovascular assessment",
+        "Heart disease risk",
+        "Review common cardiovascular indicators with a structured, model-assisted screening.",
+    )
+    model = model_gate("heart")
+    if model is None:
+        return
+    with st.form("heart_form"):
+        st.markdown('<div class="section-card">', unsafe_allow_html=True)
+        section_heading("Patient profile", "Enter the measurements available from the current visit.")
+        col_one, col_two, col_three = st.columns(3)
+        with col_one:
+            age = st.number_input("Age", 1, 120, 50, help="Patient age in years.")
+            sex = st.selectbox("Sex", [0, 1], format_func=lambda value: "Female" if value == 0 else "Male", help="Encoded sex used by the trained model.")
+            chest_pain = st.selectbox("Chest pain type", [0, 1, 2, 3], help="Encoded chest-pain category from the source dataset.")
+            resting_bp = st.number_input("Resting blood pressure", 80, 250, 130, help="Resting systolic blood pressure in mmHg.")
+        with col_two:
+            cholesterol = st.number_input("Cholesterol", 100, 600, 240, help="Serum cholesterol in mg/dL.")
+            fasting_bs = st.selectbox("Fasting blood sugar > 120", [0, 1], format_func=lambda value: "No" if value == 0 else "Yes", help="Whether fasting blood sugar exceeds 120 mg/dL.")
+            resting_ecg = st.selectbox("Resting ECG", [0, 1, 2], help="Encoded resting electrocardiogram result.")
+            max_hr = st.number_input("Maximum heart rate", 60, 220, 150, help="Maximum heart rate achieved during testing.")
+        with col_three:
+            exercise_angina = st.selectbox("Exercise-induced angina", [0, 1], format_func=lambda value: "No" if value == 0 else "Yes", help="Whether exercise induces angina.")
+            oldpeak = st.number_input("ST depression (Oldpeak)", 0.0, 10.0, 1.0, format="%.1f", help="ST depression induced by exercise relative to rest.")
+            slope = st.selectbox("ST segment slope", [0, 1, 2], help="Encoded slope of the peak exercise ST segment.")
+            major_vessels = st.selectbox("Major vessels (0–3)", [0, 1, 2, 3], help="Number of major vessels observed by fluoroscopy.")
+        st.markdown("</div>", unsafe_allow_html=True)
+        submitted = st.form_submit_button("Analyze heart risk", width="stretch")
 
-            st.markdown("### Select Your Symptoms")
+    if submitted:
+        show_range_warnings([
+            ("Resting blood pressure", resting_bp, 90, 180),
+            ("Cholesterol", cholesterol, 120, 400),
+            ("Maximum heart rate", max_hr, 80, 210),
+        ])
+        input_data = pd.DataFrame([{
+            "Age": age,
+            "RestingBP": resting_bp,
+            "Cholesterol": cholesterol,
+            "FastingBS": fasting_bs,
+            "MaxHR": max_hr,
+            "Oldpeak": oldpeak,
+            "Sex_M": sex,
+            "ChestPainType_ATA": int(chest_pain == 1),
+            "ChestPainType_NAP": int(chest_pain == 2),
+            "ChestPainType_TA": int(chest_pain == 3),
+            "RestingECG_Normal": int(resting_ecg == 1),
+            "RestingECG_ST": int(resting_ecg == 2),
+            "ExerciseAngina_Y": exercise_angina,
+            "ST_Slope_Flat": int(slope == 1),
+            "ST_Slope_Up": int(slope == 2),
+        }])
+        probability = model.predict_proba(input_data)[0, 1]
+        render_risk_assessment(probability)
 
-            st.info(
-                "Search and select all symptoms "
-                "you are currently experiencing."
+
+def render_diabetes():
+    page_header(
+        "Metabolic assessment",
+        "Diabetes risk",
+        "Use routine metabolic measurements to review a diabetes screening signal.",
+    )
+    model = model_gate("diabetes")
+    if model is None:
+        return
+    with st.form("diabetes_form"):
+        st.markdown('<div class="section-card">', unsafe_allow_html=True)
+        section_heading("Metabolic profile", "Use the most recent validated measurements available.")
+        col_one, col_two = st.columns(2)
+        with col_one:
+            pregnancies = st.number_input("Pregnancies", 0, 20, 1, help="Number of pregnancies.")
+            glucose = st.number_input("Glucose", 0, 300, 120, help="Plasma glucose concentration in mg/dL.")
+            blood_pressure = st.number_input("Blood pressure", 0, 200, 70, help="Diastolic blood pressure in mmHg.")
+            skin_thickness = st.number_input("Skin thickness", 0, 100, 20, help="Triceps skin-fold thickness in mm.")
+        with col_two:
+            insulin = st.number_input("Insulin", 0, 900, 80, help="Two-hour serum insulin in μU/mL.")
+            bmi = st.number_input("BMI", 0.0, 70.0, 25.0, format="%.1f", help="Body mass index in kg/m².")
+            pedigree = st.number_input("Diabetes pedigree function", 0.0, 3.0, 0.5, format="%.3f", help="Family-history-based diabetes risk score.")
+            age = st.number_input("Age", 1, 120, 35, help="Patient age in years.")
+        st.markdown("</div>", unsafe_allow_html=True)
+        submitted = st.form_submit_button("Analyze diabetes risk", width="stretch")
+
+    if submitted:
+        show_range_warnings([
+            ("Glucose", glucose, 50, 200),
+            ("Blood pressure", blood_pressure, 40, 130),
+            ("BMI", bmi, 15, 50),
+        ])
+        input_data = make_model_input(model, [
+            pregnancies, glucose, blood_pressure, skin_thickness,
+            insulin, bmi, pedigree, age,
+        ])
+        render_risk_assessment(model.predict_proba(input_data)[0, 1])
+
+
+def render_cancer():
+    page_header(
+        "Oncology assessment",
+        "Breast cancer risk",
+        "Review the morphological measurements used by the breast cancer screening model.",
+    )
+    model = model_gate("cancer")
+    if model is None:
+        return
+    with st.form("cancer_form"):
+        st.markdown('<div class="section-card">', unsafe_allow_html=True)
+        section_heading("Morphology profile", "Enter the measurements from the pathology or imaging record.")
+        col_one, col_two, col_three = st.columns(3)
+        with col_one:
+            mean_radius = st.number_input("Mean radius", 0.0, 100.0, 14.0, format="%.2f", help="Average radius measurement.")
+            mean_texture = st.number_input("Mean texture", 0.0, 100.0, 20.0, format="%.2f", help="Average texture measurement.")
+            mean_perimeter = st.number_input("Mean perimeter", 0.0, 500.0, 90.0, format="%.2f", help="Average perimeter measurement.")
+        with col_two:
+            mean_area = st.number_input("Mean area", 0.0, 5000.0, 600.0, format="%.2f", help="Average area measurement.")
+            mean_smoothness = st.number_input("Mean smoothness", 0.0, 1.0, 0.1, format="%.4f", help="Average smoothness measurement.")
+            worst_radius = st.number_input("Worst radius", 0.0, 100.0, 16.0, format="%.2f", help="Largest radius measurement.")
+        with col_three:
+            worst_texture = st.number_input("Worst texture", 0.0, 100.0, 25.0, format="%.2f", help="Largest texture measurement.")
+            worst_perimeter = st.number_input("Worst perimeter", 0.0, 500.0, 100.0, format="%.2f", help="Largest perimeter measurement.")
+            worst_area = st.number_input("Worst area", 0.0, 5000.0, 700.0, format="%.2f", help="Largest area measurement.")
+        st.markdown("</div>", unsafe_allow_html=True)
+        submitted = st.form_submit_button("Analyze cancer risk", width="stretch")
+
+    if submitted:
+        input_data = make_model_input(model, [
+            mean_radius, mean_texture, mean_perimeter, mean_area,
+            mean_smoothness, worst_radius, worst_texture, worst_perimeter,
+            worst_area,
+        ])
+        render_risk_assessment(model.predict_proba(input_data)[0, 1])
+
+
+def render_liver():
+    page_header(
+        "Hepatology assessment",
+        "Liver disease risk",
+        "Review liver function measurements with the pipeline trained on the ILPD dataset.",
+    )
+    model = model_gate("liver")
+    if model is None:
+        return
+    with st.form("liver_form"):
+        st.markdown('<div class="section-card">', unsafe_allow_html=True)
+        section_heading("Liver function profile", "Enter the latest available laboratory measurements.")
+        col_one, col_two, col_three = st.columns(3)
+        with col_one:
+            age = st.number_input("Age", 1, 120, 45, key="l_age", help="Patient age in years.")
+            gender = st.selectbox("Gender", ["Female", "Male"], key="l_gender", help="Gender category used by the trained pipeline.")
+            tb = st.number_input("Total bilirubin (TB)", 0.0, 100.0, 1.0, format="%.2f", help="Total bilirubin concentration.")
+            db = st.number_input("Direct bilirubin (DB)", 0.0, 100.0, 0.3, format="%.2f", help="Direct bilirubin concentration.")
+        with col_two:
+            alkphos = st.number_input("Alkaline phosphatase", 0.0, 2000.0, 200.0, format="%.1f", help="Alkaline phosphatase enzyme level.")
+            sgpt = st.number_input("SGPT / ALT", 0.0, 2000.0, 30.0, format="%.1f", help="Alanine aminotransferase level.")
+            sgot = st.number_input("SGOT / AST", 0.0, 2000.0, 35.0, format="%.1f", help="Aspartate aminotransferase level.")
+        with col_three:
+            total_protein = st.number_input("Total protein (TP)", 0.0, 20.0, 6.5, format="%.2f", help="Total serum protein.")
+            albumin = st.number_input("Albumin (ALB)", 0.0, 15.0, 3.2, format="%.2f", help="Serum albumin concentration.")
+            ratio = st.number_input("Albumin / globulin ratio", 0.0, 10.0, 0.9, format="%.2f", help="Albumin-to-globulin ratio.")
+        st.markdown("</div>", unsafe_allow_html=True)
+        submitted = st.form_submit_button("Analyze liver risk", width="stretch")
+
+    if submitted:
+        show_range_warnings([
+            ("Total bilirubin", tb, 0.1, 3.0),
+            ("Direct bilirubin", db, 0.0, 1.0),
+            ("Alkaline phosphatase", alkphos, 40, 400),
+            ("SGPT / ALT", sgpt, 5, 200),
+            ("SGOT / AST", sgot, 5, 200),
+            ("Albumin", albumin, 2.5, 5.5),
+        ])
+        liver_input = pd.DataFrame([{
+            "Age": age,
+            "Gender": gender,
+            "TB": tb,
+            "DB": db,
+            "Alkphos": alkphos,
+            "Sgpt": sgpt,
+            "Sgot": sgot,
+            "TP": total_protein,
+            "ALB": albumin,
+            "A/G Ratio": ratio,
+        }])
+        expected_columns = list(model.feature_names_in_)
+        if list(liver_input.columns) != expected_columns:
+            st.error(
+                "The liver input schema does not match the saved model. "
+                f"Expected {expected_columns}; received {list(liver_input.columns)}."
             )
+            return
+        render_risk_assessment(model.predict_proba(liver_input)[0, 1])
 
-            # Convert snake_case into readable names
+
+def render_general():
+    page_header(
+        "Symptom intelligence",
+        "General checkup",
+        "Select the symptoms currently present to generate a ranked, multi-disease screening signal.",
+    )
+    model_bundle = model_gate("general")
+    if model_bundle is None:
+        return
+    general_model, feature_names, encoder = model_bundle
+    with st.form("general_form"):
+        st.markdown('<div class="section-card">', unsafe_allow_html=True)
+        section_heading("Symptom profile", "Select all symptoms that are currently relevant.")
+        patient_col, symptom_col = st.columns([1, 2])
+        with patient_col:
+            st.number_input("Age", 1, 120, 25, key="g_age", help="Patient age in years.")
+            st.selectbox("Gender", ["Male", "Female", "Other"], key="g_gender", help="Patient gender.")
+        with symptom_col:
             symptom_mapping = {
                 symptom.replace("_", " ").title(): symptom
                 for symptom in feature_names
             }
-
-            # Display readable symptom names
             selected_symptoms = st.multiselect(
-                "Search Symptoms",
+                "Symptoms",
                 options=list(symptom_mapping.keys()),
-                placeholder="e.g. Nodal Skin Eruptions",
-                help="You can select multiple symptoms."
+                help="Search and select all symptoms currently present.",
             )
+        st.markdown("</div>", unsafe_allow_html=True)
+        submitted = st.form_submit_button("Generate symptom assessment", width="stretch")
 
-            st.write(
-                f"Selected Symptoms: {len(selected_symptoms)}"
-            )
-
-            # Show selected symptoms
-            if selected_symptoms:
-
-                st.markdown("#### Your Selected Symptoms")
-
-                for symptom in selected_symptoms:
-                    st.write(f"✅ {symptom}")
-
-            st.markdown("---")
-
-            # Analyze button
-            analyze_general = st.button(
-                "🔍 Analyze General Health",
-                type="primary",
-                use_container_width=True
-            )
-
-            if analyze_general:
-
-                if not selected_symptoms:
-
-                    st.warning(
-                        "Please select at least one symptom."
-                    )
-
-                else:
-
-                    # Create input using original training columns
-                    input_df = pd.DataFrame(
-                        0,
-                        index=[0],
-                        columns=feature_names
-                    )
-
-                    # Set selected symptoms to 1
-                    for symptom in selected_symptoms:
-
-                        original_name = symptom_mapping[symptom]
-
-                        input_df.loc[0, original_name] = 1
-
-                    # Generate prediction probabilities
-                    probabilities = general_model.predict_proba(
-                        input_df
-                    )[0]
-
-                    # Sort predictions
-                    sorted_indices = np.argsort(probabilities)[::-1]
-
-                    # Get top prediction
-                    best_index = sorted_indices[0]
-
-                    predicted_class = general_model.classes_[best_index]
-
-                    predicted_disease = general_encoder.inverse_transform(
-                        [int(predicted_class)]
-                    )[0]
-
-                    prediction_score = probabilities[best_index] * 100
-
-                    st.markdown("---")
-
-                    st.markdown("## 🩺 Prediction Results")
-
-                    st.success(
-                        f"Top Predicted Disease: {predicted_disease}"
-                    )
-
-                    # Display prediction score
-                    st.metric(
-                        "Model Prediction Score",
-                        f"{prediction_score:.2f}%"
-                    )
-
-                    st.progress(
-                        float(probabilities[best_index])
-                    )
-
-                    st.caption(
-                        "This percentage represents the model's "
-                        "prediction score, not a clinically validated "
-                        "probability of disease."
-                    )
-
-                    # Top 5 predictions
-                    st.markdown("### Top 5 Possible Predictions")
-
-                    results = []
-
-                    for idx in sorted_indices[:5]:
-
-                        disease_id = general_model.classes_[idx]
-
-                        disease_name = general_encoder.inverse_transform(
-                            [int(disease_id)]
-                        )[0]
-
-                        score = probabilities[idx] * 100
-
-                        results.append({
-                            "Disease": disease_name,
-                            "Prediction Score (%)": round(score, 2)
-                        })
-
-                    results_df = pd.DataFrame(results)
-
-                    st.dataframe(
-                        results_df,
-                        use_container_width=True,
-                        hide_index=True
-                    )
-
-                    # Visualization
-                    st.markdown("### Prediction Comparison")
-
-                    chart_df = results_df.set_index("Disease")
-
-                    st.bar_chart(
-                        chart_df["Prediction Score (%)"]
-                    )
-
-                    st.warning(
-                        "⚠️ This is an experimental AI prediction, "
-                        "not a medical diagnosis. Consult a qualified "
-                        "healthcare professional for proper evaluation."
-                    )
-
-        except Exception as e:
-
-            st.error(f"General Checkup Error: {str(e)}")
+    if submitted:
+        if not selected_symptoms:
+            st.warning("Select at least one symptom to generate an assessment.")
+            return
+        input_df = pd.DataFrame(0, index=[0], columns=feature_names)
+        for symptom in selected_symptoms:
+            input_df.loc[0, symptom_mapping[symptom]] = 1
+        probabilities = general_model.predict_proba(input_df)[0]
+        sorted_indices = np.argsort(probabilities)[::-1]
+        rows = []
+        for index in sorted_indices[:5]:
+            disease_name = encoder.inverse_transform([int(general_model.classes_[index])])[0]
+            rows.append({
+                "Disease": disease_name,
+                "Prediction score": f"{probabilities[index] * 100:.2f}%",
+            })
+        best_index = sorted_indices[0]
+        best_name = encoder.inverse_transform([int(general_model.classes_[best_index])])[0]
+        st.markdown(f"### Top predicted condition: {best_name}")
+        st.caption("Ranked from the selected symptom profile.")
+        metric_col, chart_col = st.columns([1, 2])
+        with metric_col:
+            render_risk_assessment(float(probabilities[best_index]))
+        with chart_col:
+            st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
+        st.info("Consult a qualified healthcare professional for examination and diagnosis.")
 
 
+def main():
+    route = render_sidebar()
+    if route == "Home":
+        render_home()
+    elif route == "Heart Disease":
+        render_heart()
+    elif route == "Diabetes":
+        render_diabetes()
+    elif route == "Cancer":
+        render_cancer()
+    elif route == "Liver Disease":
+        render_liver()
+    elif route == "General Checkup":
+        render_general()
+
+    st.markdown(
+        """
+        <div class="disclaimer">
+            <strong>Clinical disclaimer:</strong> This application is for education
+            and decision support only. It is not a diagnosis or substitute for
+            professional medical advice.
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.caption("MedSight · End-to-End Medical Assistant")
 
 
-
-
-
-# ==========================================
-# FOOTER
-# ==========================================
-st.markdown("---")
-st.markdown("<p style='text-align: center; color: #6B7280;'>AI Medical Triage System | Built with Streamlit & Scikit-Learn</p>", unsafe_allow_html=True)
+if __name__ == "__main__":
+    main()
