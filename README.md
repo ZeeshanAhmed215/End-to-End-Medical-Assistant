@@ -6,15 +6,17 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 > A multi-disease machine learning assistant featuring automated data preprocessing, ensemble classification, and explainability across 5 clinical datasets.
-
 ---
 
 ## 🚀 Overview
 
 **MedSight** is a comprehensive clinical decision-support intelligence platform. The architecture features dedicated, separately trained machine learning pipelines for distinct medical conditions—including breast cancer, cardiovascular disease, diabetes, liver disorders, and multi-symptom general diagnoses. All models are unified within a responsive, dark-themed **Streamlit** web application for real-time risk screening.
 
----
+**🌐 Live Demo**  
+Try the application directly in your browser without any local setup:  
+👉 [Launch MedSight Live App](https://zeeshanahmed215-end-to-end-medical-assistant-app-fkeciy.streamlit.app/)
 
+---
 ## 📈 Model Performance & Evaluation
 
 Each specialized model is trained on distinct clinical datasets and evaluated on stratified held-out test sets. Below is a summary of their performance metrics:
